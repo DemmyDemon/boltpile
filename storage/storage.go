@@ -14,10 +14,10 @@ import (
 
 const (
 	MAX_SIZE_MB     = 5
-	ACCESS_DENIED   = `{"error":"access denied"}`
-	ENTRY_NOT_FOUND = `{"error":"entry not found"}`
-	ENTRY_TOO_BIG   = `{"error":"entry too big"}`
-	OOOPS           = `{"error":"we messed up on our end"}`
+	ACCESS_DENIED   = `{"error":"access denied", "success":false}`
+	ENTRY_NOT_FOUND = `{"error":"entry not found", "success":false}`
+	REQUEST_WEIRD   = `{"error":"request too weird", "success":false}`
+	OOOPS           = `{"error":"we messed up on our end", "success":false}`
 	SUCCESS         = `{"success":true, "size":%d, "entry":%q}`
 )
 
@@ -27,11 +27,20 @@ func SendMessage(w http.ResponseWriter, statusCode int, messge string) {
 	w.Write([]byte(messge))
 }
 
-func GetFile(db *bbolt.DB) http.HandlerFunc {
+func GetFile(db *bbolt.DB, config Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		pile := r.PathValue("pile")
 		entry := r.PathValue("entry")
-		err := db.View(func(tx *bbolt.Tx) error {
+
+		pileConfig, err := config.Pile(pile)
+		if err != nil {
+			log.Error().Err(err).Str("operation", "read").Str("pile", pile).Str("entry", entry).Str("peer", r.RemoteAddr).Msg("Couldn't obtain pile config")
+			SendMessage(w, http.StatusInternalServerError, OOOPS)
+			return
+		}
+		w.Header().Add("Access-Control-Allow-Origin", pileConfig.Origin)
+
+		err = db.View(func(tx *bbolt.Tx) error {
 			// TODO:  RemoteAddr isn't adjusted for proxying.
 			logEntry := log.Info().Str("operation", "read").Str("pile", pile).Str("entry", entry).Str("peer", r.RemoteAddr)
 
@@ -84,17 +93,25 @@ func GetFile(db *bbolt.DB) http.HandlerFunc {
 	}
 }
 
-func PutFile(db *bbolt.DB) http.HandlerFunc {
+func PutFile(db *bbolt.DB, config Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		pile := r.PathValue("pile")
 		// TODO:  RemoteAddr isn't adjusted for proxying.
 		logEntry := log.Info().Str("operation", "write").Str("pile", pile).Str("peer", r.RemoteAddr)
 
+		pileConfig, err := config.Pile(pile)
+		if err != nil {
+			log.Error().Err(err).Str("operation", "write").Str("pile", pile).Str("peer", r.RemoteAddr).Msg("Couldn't obtain pile config")
+			SendMessage(w, http.StatusInternalServerError, OOOPS)
+			return
+		}
+		w.Header().Add("Access-Control-Allow-Origin", pileConfig.Origin)
+
 		r.Body = http.MaxBytesReader(w, r.Body, MAX_SIZE_MB<<20+512)
-		err := r.ParseMultipartForm(MAX_SIZE_MB << 20)
+		err = r.ParseMultipartForm(MAX_SIZE_MB << 20)
 		if err != nil {
 			logEntry.Err(err).Msg("Oversize file?")
-			SendMessage(w, http.StatusBadRequest, ENTRY_TOO_BIG)
+			SendMessage(w, http.StatusBadRequest, REQUEST_WEIRD)
 			return
 		}
 		err = db.Update(func(tx *bbolt.Tx) error {
@@ -122,7 +139,7 @@ func PutFile(db *bbolt.DB) http.HandlerFunc {
 			file, _, err := r.FormFile("data")
 			if err != nil {
 				logEntry.Err(err).Msg("Failed to open file reader")
-				SendMessage(w, http.StatusInternalServerError, OOOPS)
+				SendMessage(w, http.StatusBadRequest, REQUEST_WEIRD)
 				return nil
 			}
 			defer file.Close()

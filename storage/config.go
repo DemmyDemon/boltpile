@@ -2,10 +2,15 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"time"
 
 	"github.com/rs/zerolog/log"
+)
+
+var (
+	ErrNoSuchPile = errors.New("no such pile")
 )
 
 type Config struct {
@@ -14,6 +19,7 @@ type Config struct {
 
 type PileConfig struct {
 	Lifetime time.Duration `json:"lifetime"`
+	Origin   string        `json:"origin"`
 }
 
 func (c Config) BucketNames() [][]byte {
@@ -22,6 +28,13 @@ func (c Config) BucketNames() [][]byte {
 		names = append(names, []byte(key))
 	}
 	return names
+}
+
+func (c Config) Pile(pile string) (PileConfig, error) {
+	if pileConfig, ok := c.Piles[pile]; ok {
+		return pileConfig, nil
+	}
+	return PileConfig{}, ErrNoSuchPile
 }
 
 func LoadConfig(filename string) Config {

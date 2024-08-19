@@ -85,20 +85,22 @@ func main() {
 	config := storage.LoadConfig("boltpile.json")
 
 	err = db.Update(func(tx *bbolt.Tx) error {
-		for _, bucket := range config.BucketNames() {
+		buckets := config.BucketNames()
+		for _, bucket := range buckets {
 			_, err := tx.CreateBucketIfNotExists(bucket)
 			if err != nil {
 				return err
 			}
 		}
+		// TODO: Iterate through existing buckets, dropping the ones that are not in the list.
 		return nil
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create all the buckets.")
 	}
 
-	http.Handle("GET /{pile}/{entry}", storage.GetFile(db))
-	http.Handle("POST /{pile}/", storage.PutFile(db))
+	http.Handle("GET /{pile}/{entry}", storage.GetFile(db, config))
+	http.Handle("POST /{pile}/", storage.PutFile(db, config))
 	if err := http.ListenAndServe(bind+":"+port, nil); err != nil {
 		log.Fatal().Err(err).Msg("Error while serving boltpile!")
 	}
