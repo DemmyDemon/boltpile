@@ -1,3 +1,12 @@
 #!/usr/bin/env bash
-/usr/bin/curl -i -X POST -H "Content-Type: multipart/form-data" -F "data=@README.md" http://localhost:1995/0f20c1f9-8282-46bb-aa91-e525d6c7dd55/
+FILE=$1
+if [ -z "$FILE" ]; then 
+    echo "Specify a file"
+    exit 1
+fi
+PILE=84ed8bd7-f8a1-4e4b-bc4d-85868208dae5
+DATA=$(/usr/bin/env curl -s -X POST -H "Content-Type: multipart/form-data" -F "data=@$FILE" http://localhost:1995/$PILE/)
+ENTRY=$(jq -r '.entry' <<< "$DATA")
+echo http://localhost:1995/$PILE/$ENTRY
+/usr/bin/env curl -s http://localhost:1995/$PILE/$ENTRY
 
