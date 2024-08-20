@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -14,6 +15,7 @@ import (
 )
 
 const (
+	TIME_FORMAT     = time.RFC3339
 	MAX_SIZE_MB     = 5
 	ACCESS_DENIED   = `{"error":"access denied", "success":false}`
 	ENTRY_NOT_FOUND = `{"error":"entry not found", "success":false}`
@@ -172,8 +174,8 @@ func PutFile(db *bbolt.DB, config Config) http.HandlerFunc {
 				SendMessage(w, http.StatusInternalServerError, OOOPS)
 				return nil
 			}
-
-			err = bucket.Put([]byte(id.String()), []byte("Okay, whatever"))
+			now := time.Now().Format(TIME_FORMAT)
+			err = bucket.Put([]byte(id.String()), []byte(now))
 			if err != nil {
 				logEntry.Err(err).Msg("Could not store file metadata")
 				SendMessage(w, http.StatusInternalServerError, OOOPS)

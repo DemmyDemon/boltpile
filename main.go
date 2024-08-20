@@ -15,7 +15,7 @@ import (
 
 func setupLogging() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	zerolog.DurationFieldUnit = time.Microsecond
+	zerolog.DurationFieldUnit = time.Second
 	zerolog.DurationFieldInteger = true
 
 	loglevel := os.Getenv("BOLTPILE_LOGLEVEL")
@@ -84,20 +84,12 @@ func main() {
 
 	config := storage.LoadConfig("boltpile.json")
 
-	err = db.Update(func(tx *bbolt.Tx) error {
-		buckets := config.BucketNames()
-		for _, bucket := range buckets {
-			_, err := tx.CreateBucketIfNotExists(bucket)
-			if err != nil {
-				return err
-			}
-		}
-		// TODO: Iterate through existing buckets, dropping the ones that are not in the list.
-		return nil
-	})
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create all the buckets.")
+	if err := storage.Startup(config, db); err != nil {
+		log.Fatal().Err(err).Msg("Error during startup maintenance")
 	}
+	log.Debug().Msg("Startup maintenance complete")
+
+	storage.VoidExpired(config, db)
 
 	http.Handle("GET /{pile}/{entry}", storage.GetFile(db, config))
 	http.Handle("POST /{pile}/", storage.PutFile(db, config))
