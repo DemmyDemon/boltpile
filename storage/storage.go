@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -27,22 +28,37 @@ func SendMessage(w http.ResponseWriter, statusCode int, messge string) {
 	w.Write([]byte(messge))
 }
 
+func DeterminePeer(config Config, r *http.Request) string {
+	remote := r.RemoteAddr
+	peer, _, err := net.SplitHostPort(remote)
+	if err != nil {
+		log.Warn().Err(err).Msg("Splitting host and port from remote address is weird.")
+		return remote
+	}
+	if config.ForwardHeader != "" {
+		if forwardHeader := r.Header.Get(config.ForwardHeader); forwardHeader != "" {
+			return forwardHeader
+		}
+	}
+	return peer
+}
+
 func GetFile(db *bbolt.DB, config Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		pile := r.PathValue("pile")
 		entry := r.PathValue("entry")
+		peer := DeterminePeer(config, r)
 
 		pileConfig, err := config.Pile(pile)
 		if err != nil {
-			log.Error().Err(err).Str("operation", "read").Str("pile", pile).Str("entry", entry).Str("peer", r.RemoteAddr).Msg("Couldn't obtain pile config")
+			log.Error().Err(err).Str("operation", "read").Str("pile", pile).Str("entry", entry).Str("peer", peer).Msg("Couldn't obtain pile config")
 			SendMessage(w, http.StatusInternalServerError, OOOPS)
 			return
 		}
 		w.Header().Add("Access-Control-Allow-Origin", pileConfig.Origin)
 
 		err = db.View(func(tx *bbolt.Tx) error {
-			// TODO:  RemoteAddr isn't adjusted for proxying.
-			logEntry := log.Info().Str("operation", "read").Str("pile", pile).Str("entry", entry).Str("peer", r.RemoteAddr)
+			logEntry := log.Info().Str("operation", "read").Str("pile", pile).Str("entry", entry).Str("peer", peer)
 
 			bucket := tx.Bucket([]byte(pile))
 			if bucket == nil {
@@ -96,12 +112,12 @@ func GetFile(db *bbolt.DB, config Config) http.HandlerFunc {
 func PutFile(db *bbolt.DB, config Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		pile := r.PathValue("pile")
-		// TODO:  RemoteAddr isn't adjusted for proxying.
-		logEntry := log.Info().Str("operation", "write").Str("pile", pile).Str("peer", r.RemoteAddr)
+		peer := DeterminePeer(config, r)
+		logEntry := log.Info().Str("operation", "write").Str("pile", pile).Str("peer", peer)
 
 		pileConfig, err := config.Pile(pile)
 		if err != nil {
-			log.Error().Err(err).Str("operation", "write").Str("pile", pile).Str("peer", r.RemoteAddr).Msg("Couldn't obtain pile config")
+			log.Error().Err(err).Str("operation", "write").Str("pile", pile).Str("peer", peer).Msg("Couldn't obtain pile config")
 			SendMessage(w, http.StatusInternalServerError, OOOPS)
 			return
 		}

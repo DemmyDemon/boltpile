@@ -14,7 +14,8 @@ var (
 )
 
 type Config struct {
-	Piles map[string]PileConfig `json:"piles"`
+	Piles         map[string]PileConfig `json:"piles"`
+	ForwardHeader string                `json:"forward_header"`
 }
 
 type PileConfig struct {
