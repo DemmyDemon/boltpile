@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"go.etcd.io/bbolt"
@@ -18,7 +19,7 @@ func setupLogging() {
 	zerolog.DurationFieldUnit = time.Second
 	zerolog.DurationFieldInteger = true
 
-	loglevel := os.Getenv("BOLTPILE_LOGLEVEL")
+	loglevel := strings.ToLower(os.Getenv("BOLTPILE_LOGLEVEL"))
 	switch loglevel {
 	case "panic":
 		zerolog.SetGlobalLevel(zerolog.PanicLevel)
@@ -89,7 +90,7 @@ func main() {
 	}
 	log.Debug().Msg("Startup maintenance complete")
 
-	storage.VoidExpired(config, db)
+	storage.StartExpireLoop(5*time.Minute, config, db)
 
 	http.Handle("GET /{pile}/{entry}", storage.GetFile(db, config))
 	http.Handle("POST /{pile}/", storage.PutFile(db, config))

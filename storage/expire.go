@@ -3,6 +3,8 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -40,6 +42,16 @@ func VoidExpired(config Config, db *bbolt.DB) {
 				})
 				for _, entry := range expired {
 					log.Info().Str("operation", "expire").Str("pile", pile).Str("entry", entry).Msg("Expired!")
+					if err := bucket.Delete([]byte(entry)); err != nil {
+						return fmt.Errorf("delete expired entry %s in bolt: %w", entry, err)
+					}
+					path := filepath.Join("piles", pile, entry)
+					if err := os.Remove(path); err != nil {
+						if !os.IsNotExist(err) {
+							return fmt.Errorf("delete expired file %s: %w", entry, err)
+						}
+						log.Warn().Str("operation", "expire").Str("pile", pile).Str("entry", entry).Msg("Expired file already doesn't exist!")
+					}
 				}
 				debug.Int("expired", len(expired)).Msg("OK")
 			} else {
@@ -51,4 +63,26 @@ func VoidExpired(config Config, db *bbolt.DB) {
 	if err != nil {
 		log.Error().Err(err).Msg("Error during VoidExpire operation")
 	}
+}
+
+type QuitSignalChan chan<- interface{}
+
+func StartExpireLoop(interval time.Duration, config Config, db *bbolt.DB) QuitSignalChan {
+
+	VoidExpired(config, db)
+
+	ticker := time.NewTicker(interval)
+	quit := make(chan interface{})
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				VoidExpired(config, db)
+			case <-quit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+	return quit
 }
