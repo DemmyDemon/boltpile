@@ -92,8 +92,10 @@ func main() {
 
 	storage.StartExpireLoop(5*time.Minute, config, db)
 
+	rateLimiter := storage.NewRateLimiter()
+
 	http.Handle("GET /{pile}/{entry}", storage.GetFile(db, config))
-	http.Handle("POST /{pile}/", storage.PutFile(db, config))
+	http.Handle("POST /{pile}/", storage.PutFile(db, config, rateLimiter))
 	if err := http.ListenAndServe(bind+":"+port, nil); err != nil {
 		log.Fatal().Err(err).Msg("Error while serving boltpile!")
 	}

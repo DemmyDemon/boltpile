@@ -20,6 +20,7 @@ const (
 	ACCESS_DENIED   = `{"error":"access denied", "success":false}`
 	ENTRY_NOT_FOUND = `{"error":"entry not found", "success":false}`
 	REQUEST_WEIRD   = `{"error":"request too weird", "success":false}`
+	CHILL_OUT       = `{"error":"you need to chill out", "success":false}`
 	OOOPS           = `{"error":"we messed up on our end", "success":false}`
 	SUCCESS         = `{"success":true, "size":%d, "entry":%q}`
 )
@@ -130,10 +131,17 @@ func GetFile(db *bbolt.DB, config Config) http.HandlerFunc {
 	}
 }
 
-func PutFile(db *bbolt.DB, config Config) http.HandlerFunc {
+func PutFile(db *bbolt.DB, config Config, limiter *RateLimiter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		pile := r.PathValue("pile")
 		peer := DeterminePeer(config, r)
+
+		if !limiter.Allow(peer) {
+			log.Warn().Str("operation", "write").Str("pile", pile).Str("peer", peer).Msg("Hit the rate limit!")
+			SendMessage(w, http.StatusTooManyRequests, CHILL_OUT)
+			return
+		}
+
 		logEntry := log.Info().Str("operation", "write").Str("pile", pile).Str("peer", peer)
 
 		pileConfig, err := config.Pile(pile)
