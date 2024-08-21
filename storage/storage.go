@@ -75,7 +75,7 @@ func GetFile(db *bbolt.DB, config Config) http.HandlerFunc {
 				logEntry.Msg("Entry not found in bucket")
 				return nil
 			}
-			// TODO: Check that this is okay to serve from the metadata
+
 			now := time.Now()
 			createTime, err := time.Parse(TIME_FORMAT, string(value))
 			if err != nil {
