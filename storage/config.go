@@ -50,6 +50,9 @@ type Config struct {
 type PileConfig struct {
 	Lifetime Lifetime `json:"lifetime"`
 	Origin   string   `json:"origin"`
+	// TODO: Actually implement key checks if the keys are defined!
+	WriteKey string `json:"write_key"`
+	ReadKey  string `json:"read_key"`
 }
 
 func (c Config) BucketNames() [][]byte {
