@@ -76,6 +76,24 @@ func GetFile(db *bbolt.DB, config Config) http.HandlerFunc {
 				return nil
 			}
 			// TODO: Check that this is okay to serve from the metadata
+			now := time.Now()
+			createTime, err := time.Parse(TIME_FORMAT, string(value))
+			if err != nil {
+				SendMessage(w, http.StatusInternalServerError, OOOPS)
+				logEntry.Err(err).Msg("Failed to parse creation time")
+				return nil
+			}
+
+			expires := createTime.Add(pileConfig.Lifetime.Duration)
+			if now.After(expires) {
+				SendMessage(w, http.StatusNotFound, ENTRY_NOT_FOUND)
+				logEntry.Msg("Entry has expired, but was not culled yet")
+				return nil
+			}
+
+			w.Header().Set("Expires", expires.UTC().Format(http.TimeFormat))
+			w.Header().Set("Last-Modified", createTime.UTC().Format(http.TimeFormat))
+
 			file, err := os.Open(path.Join("piles", pile, entry))
 			if err != nil {
 				if os.IsNotExist(err) {
@@ -96,8 +114,9 @@ func GetFile(db *bbolt.DB, config Config) http.HandlerFunc {
 				logEntry.Err(err).Msg("Error during sniff")
 				return nil
 			}
-			file.Seek(0, 0)
 			MIMEType := http.DetectContentType(buf[:read])
+			file.Seek(0, 0)
+
 			w.Header().Set("Content-Type", MIMEType)
 			w.WriteHeader(http.StatusOK)
 			logEntry.Msg("Serving data!")
@@ -128,7 +147,7 @@ func PutFile(db *bbolt.DB, config Config) http.HandlerFunc {
 		r.Body = http.MaxBytesReader(w, r.Body, MAX_SIZE_MB<<20+512)
 		err = r.ParseMultipartForm(MAX_SIZE_MB << 20)
 		if err != nil {
-			logEntry.Err(err).Msg("Oversize file?")
+			logEntry.Err(err).Msg("Error parsing multipart form. Oversize file?")
 			SendMessage(w, http.StatusBadRequest, REQUEST_WEIRD)
 			return
 		}
@@ -174,7 +193,7 @@ func PutFile(db *bbolt.DB, config Config) http.HandlerFunc {
 				SendMessage(w, http.StatusInternalServerError, OOOPS)
 				return nil
 			}
-			now := time.Now().Format(TIME_FORMAT)
+			now := time.Now().UTC().Format(TIME_FORMAT)
 			err = bucket.Put([]byte(id.String()), []byte(now))
 			if err != nil {
 				logEntry.Err(err).Msg("Could not store file metadata")
