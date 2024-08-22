@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"go.etcd.io/bbolt"
-
 	"github.com/DemmyDemon/boltpile/handler"
 	"github.com/DemmyDemon/boltpile/storage"
 	"github.com/rs/zerolog"
@@ -79,24 +77,19 @@ func main() {
 
 	log.Info().Msgf("boltpile starting in %s, listening on %s:%s", dir, bind, port)
 
-	db, err := bbolt.Open("boltpile.db", 0600, nil)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Could not open bbolt file")
-	}
+	entryHandler := storage.MustOpenBoltDatabase("boltpile.db")
 
 	config := storage.LoadConfig("boltpile.json")
 
-	if err := storage.Startup(config, db); err != nil {
+	if err := entryHandler.Startup(config); err != nil {
 		log.Fatal().Err(err).Msg("Error during startup maintenance")
 	}
 	log.Debug().Msg("Startup maintenance complete")
 
-	storage.StartExpireLoop(5*time.Minute, config, db)
-
 	rateLimiter := handler.NewRateLimiter()
 
-	http.Handle("GET /{pile}/{entry}", handler.GetFile(db, config))
-	http.Handle("POST /{pile}/", handler.PostFile(db, config, rateLimiter))
+	http.Handle("GET /{pile}/{entry}", handler.GetFile(entryHandler, config))
+	http.Handle("POST /{pile}/", handler.PostFile(entryHandler, config, rateLimiter))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" && r.URL.Path == "/" {
 			log.Info().Str("peer", handler.DeterminePeer(config, r)).Msg("Requested /, forwarded to boltpile GitHub repo")

@@ -4,17 +4,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path"
-	"time"
 
 	"github.com/DemmyDemon/boltpile/storage"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-	"go.etcd.io/bbolt"
 )
 
-func PostFile(db *bbolt.DB, config storage.Config, limiter *RateLimiter) http.HandlerFunc {
+func PostFile(ec storage.EntryCreator, config storage.Config, limiter *RateLimiter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		pile := r.PathValue("pile")
 		peer := DeterminePeer(config, r)
@@ -48,63 +43,47 @@ func PostFile(db *bbolt.DB, config storage.Config, limiter *RateLimiter) http.Ha
 			SendMessage(w, http.StatusBadRequest, REQUEST_WEIRD)
 			return
 		}
-		err = db.Update(func(tx *bbolt.Tx) error {
-			bucket := tx.Bucket([]byte(pile))
-			if bucket == nil {
-				logEntry.Msg("pile does not exist")
-				SendMessage(w, http.StatusForbidden, ACCESS_DENIED)
-				return nil
-			}
 
-			if err := os.MkdirAll(path.Join("piles", pile), os.ModePerm); err != nil {
-				logEntry.Msg("Failed to create pile directory")
-				SendMessage(w, http.StatusInternalServerError, OOOPS)
-				return nil
-			}
+		size := int64(0)
 
-			id, err := uuid.NewRandom()
-			if err != nil {
-				logEntry.Err(err).Msg("Failed to generate a UUID, somehow")
-				SendMessage(w, http.StatusInternalServerError, OOOPS)
-				return nil
-			}
-			logEntry = logEntry.Str("entry", id.String())
-
+		entryID, err := ec.CreateEntry(pile, func(entry string, dst io.Writer) error {
 			file, _, err := r.FormFile("data")
 			if err != nil {
-				logEntry.Err(err).Msg("Failed to open file reader")
-				SendMessage(w, http.StatusBadRequest, REQUEST_WEIRD)
-				return nil
+				return err
 			}
 			defer file.Close()
-
-			dst, err := os.Create(path.Join("piles", pile, id.String()))
-			if err != nil {
-				logEntry.Err(err).Msg("Failed to create file")
-				return nil
-			}
-			defer dst.Close()
-			size, err := io.Copy(dst, file)
-			if err != nil {
-				logEntry.Err(err).Msg("Failed to copy data to file")
-				SendMessage(w, http.StatusInternalServerError, OOOPS)
-				return nil
-			}
-			now := time.Now().UTC().Format(storage.TIME_FORMAT)
-			err = bucket.Put([]byte(id.String()), []byte(now))
-			if err != nil {
-				logEntry.Err(err).Msg("Could not store file metadata")
-				SendMessage(w, http.StatusInternalServerError, OOOPS)
-				return nil
-			}
-
-			SendMessage(w, http.StatusOK, fmt.Sprintf(SUCCESS, size, id))
-			logEntry.Msg("All done! Stored!")
-
-			return nil
+			size, err = io.Copy(dst, file)
+			return err
 		})
+
 		if err != nil {
-			log.Error().Err(err).Msg("Transaction failed")
+			errLog := log.Error().Err(err).Str("operation", "write").Str("pile", pile).Str("entry", entryID).Str("peer", peer)
+			switch err.(type) {
+			case storage.ErrNoSuchPile:
+				errLog.Msg("No such pile")
+				SendMessage(w, http.StatusForbidden, ACCESS_DENIED)
+			case storage.ErrFailedCreatingPileDirectory:
+				errLog.Msg("Could not create directory")
+				SendMessage(w, http.StatusInternalServerError, OOOPS)
+			case storage.ErrFailedMakingId:
+				errLog.Msg("Failed generating UUID, somehow")
+				SendMessage(w, http.StatusInternalServerError, OOOPS)
+			case storage.ErrFailedCreatingEntryFile:
+				errLog.Msg("Well, that didn't work...")
+				SendMessage(w, http.StatusInternalServerError, OOOPS)
+			case storage.ErrDuringWriteOperation:
+				errLog.Msg("Looks like weird data from client. Oversize?")
+				SendMessage(w, http.StatusBadRequest, REQUEST_WEIRD)
+			case storage.ErrFailedStoringEntryMetadata:
+				errLog.Msg("I love Bolt, but sometimes...")
+				SendMessage(w, http.StatusInternalServerError, OOOPS)
+			default:
+				errLog.Msg("Well, that was unexpected...")
+			}
+			return
 		}
+
+		SendMessage(w, http.StatusOK, fmt.Sprintf(SUCCESS, size, entryID))
+		logEntry.Str("entry", entryID).Msg("All done! Stored!")
 	}
 }

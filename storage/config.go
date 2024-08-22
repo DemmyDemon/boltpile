@@ -10,10 +10,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var (
-	ErrNoSuchPile = errors.New("no such pile")
-)
-
 type Lifetime struct {
 	time.Duration
 }
@@ -66,7 +62,7 @@ func (c Config) Pile(pile string) (PileConfig, error) {
 	if pileConfig, ok := c.Piles[pile]; ok {
 		return pileConfig, nil
 	}
-	return PileConfig{}, ErrNoSuchPile
+	return PileConfig{}, ErrNoSuchPile{pile}
 }
 
 func LoadConfig(filename string) Config {
