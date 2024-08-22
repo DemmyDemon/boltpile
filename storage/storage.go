@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,6 +47,24 @@ func DeterminePeer(config Config, r *http.Request) string {
 	return peer
 }
 
+func HasBearerToken(token string, r *http.Request) bool {
+	if token == "" {
+		return true
+	}
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return false
+	}
+	authType, candidateToken, found := strings.Cut(authHeader, " ")
+	if !found {
+		return false
+	}
+	if strings.ToLower(authType) != "bearer" {
+		return false
+	}
+	return candidateToken == token
+}
+
 func GetFile(db *bbolt.DB, config Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		pile := r.PathValue("pile")
@@ -58,10 +77,17 @@ func GetFile(db *bbolt.DB, config Config) http.HandlerFunc {
 			SendMessage(w, http.StatusInternalServerError, OOOPS)
 			return
 		}
+
+		logEntry := log.Info().Str("operation", "read").Str("pile", pile).Str("entry", entry).Str("peer", peer)
+		if !HasBearerToken(pileConfig.GETKey, r) {
+			logEntry.Msg("Invalid or missing bearer token")
+			SendMessage(w, http.StatusForbidden, ACCESS_DENIED)
+			return
+		}
+
 		w.Header().Add("Access-Control-Allow-Origin", pileConfig.Origin)
 
 		err = db.View(func(tx *bbolt.Tx) error {
-			logEntry := log.Info().Str("operation", "read").Str("pile", pile).Str("entry", entry).Str("peer", peer)
 
 			bucket := tx.Bucket([]byte(pile))
 			if bucket == nil {
@@ -150,6 +176,12 @@ func PutFile(db *bbolt.DB, config Config, limiter *RateLimiter) http.HandlerFunc
 			SendMessage(w, http.StatusInternalServerError, OOOPS)
 			return
 		}
+		if !HasBearerToken(pileConfig.POSTKey, r) {
+			logEntry.Msg("Invalid or missing bearer token")
+			SendMessage(w, http.StatusForbidden, ACCESS_DENIED)
+			return
+		}
+
 		w.Header().Add("Access-Control-Allow-Origin", pileConfig.Origin)
 
 		r.Body = http.MaxBytesReader(w, r.Body, MAX_SIZE_MB<<20+512)
