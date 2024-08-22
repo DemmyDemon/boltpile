@@ -96,6 +96,15 @@ func main() {
 
 	http.Handle("GET /{pile}/{entry}", storage.GetFile(db, config))
 	http.Handle("POST /{pile}/", storage.PutFile(db, config, rateLimiter))
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" && r.URL.Path == "/" {
+			log.Info().Str("peer", storage.DeterminePeer(config, r)).Msg("Requested /, forwarded to boltpile GitHub repo")
+			http.Redirect(w, r, "https://github.com/DemmyDemon/boltpile", http.StatusSeeOther)
+		} else {
+			log.Info().Str("peer", storage.DeterminePeer(config, r)).Str("method", r.Method).Str("url", r.URL.String()).Msg("Not a recognized request")
+			storage.SendMessage(w, http.StatusBadRequest, storage.REQUEST_WEIRD)
+		}
+	})
 	if err := http.ListenAndServe(bind+":"+port, nil); err != nil {
 		log.Fatal().Err(err).Msg("Error while serving boltpile!")
 	}
