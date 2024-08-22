@@ -4,5 +4,6 @@ clear_on_rebuild = true
 exclude_dir = [ "piles" ]
 include_file = [ "boltpile.json" ]
 stop_on_error = true
+full_bin = "BOLTPILE_LOGLEVEL=debug ./tmp/main"
 [misc]
 clean_on_exit = true
