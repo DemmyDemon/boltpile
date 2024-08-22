@@ -1,0 +1,8 @@
+[screen]
+clear_on_rebuild = true
+[build]
+exclude_dir = [ "piles" ]
+include_file = [ "boltpile.json" ]
+stop_on_error = true
+[misc]
+clean_on_exit = true
