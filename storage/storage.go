@@ -2,6 +2,7 @@ package storage
 
 import (
 	"io"
+	"net/http"
 	"os"
 	"path"
 	"time"
@@ -16,9 +17,10 @@ const (
 )
 
 type CreateWithFunc func(id string, destination io.Writer) error
+type GetWithFunc func(created time.Time, MIMEType string, file io.Reader) error
 
 type EntryGetter interface {
-	GetEntry(pile string, entry string) (created time.Time, err error)
+	GetEntry(pile string, entry string, read GetWithFunc) (err error)
 }
 type EntryCreator interface {
 	CreateEntry(pile string, creator CreateWithFunc) (entryID string, err error)
@@ -42,8 +44,7 @@ func MustOpenBoltDatabase(filename string) BoltDatabase {
 	}
 	return BoltDatabase{db: db}
 }
-func (eh BoltDatabase) GetEntry(pile string, entry string) (time.Time, error) {
-	cTime := time.Time{}
+func (eh BoltDatabase) GetEntry(pile string, entry string, get GetWithFunc) error {
 	err := eh.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(pile))
 		if bucket == nil {
@@ -57,10 +58,34 @@ func (eh BoltDatabase) GetEntry(pile string, entry string) (time.Time, error) {
 		if err != nil {
 			return ErrUnparsableTime{Raw: value, ParseError: err}
 		}
-		cTime = created
+
+		file, err := os.Open(path.Join("piles", pile, entry))
+		if err != nil {
+			if os.IsNotExist(err) {
+				return ErrNoSuchEntry{Pile: pile, Entry: entry}
+			}
+			return ErrDuringFileOperation{Pile: pile, Entry: entry, UpstreamError: err}
+		}
+
+		buf := make([]byte, 512)
+		read, err := file.Read(buf)
+		if err != nil {
+			return ErrDuringFileOperation{Pile: pile, Entry: entry, UpstreamError: err}
+		}
+		MIMEType := http.DetectContentType(buf[:read])
+		file.Seek(0, 0)
+
+		err = get(created, MIMEType, file)
+		if err != nil {
+			return ErrDuringFileOperation{Pile: pile, Entry: entry, UpstreamError: err}
+		}
+		err = file.Close()
+		if err != nil {
+			return ErrDuringFileOperation{Pile: pile, Entry: entry, UpstreamError: err}
+		}
 		return nil
 	})
-	return cTime, err
+	return err
 }
 func (eh BoltDatabase) CreateEntry(pile string, create CreateWithFunc) (string, error) {
 	id, err := uuid.NewRandom()
@@ -84,7 +109,7 @@ func (eh BoltDatabase) CreateEntry(pile string, create CreateWithFunc) (string, 
 		err = create(entry, dstFile)
 		if err != nil {
 			dstFile.Close() // ... and hope for the best, I guess XD
-			return ErrDuringWriteOperation{Pile: pile, Entry: entry, UpstreamError: err}
+			return ErrDuringFileOperation{Pile: pile, Entry: entry, UpstreamError: err}
 		}
 
 		if err := dstFile.Close(); err != nil {
