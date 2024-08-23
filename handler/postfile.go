@@ -36,8 +36,13 @@ func PostFile(ec storage.EntryCreator, config storage.Config, limiter *RateLimit
 
 		w.Header().Add("Access-Control-Allow-Origin", pileConfig.Origin)
 
-		r.Body = http.MaxBytesReader(w, r.Body, MAX_SIZE_MB<<20+512)
-		err = r.ParseMultipartForm(MAX_SIZE_MB << 20)
+		maxSize := pileConfig.MaxSize
+		if maxSize <= 0 {
+			maxSize = MAX_SIZE_DEFAULT
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, maxSize+512)
+		err = r.ParseMultipartForm(maxSize)
 		if err != nil {
 			logEntry.Err(err).Msg("Error parsing multipart form. Oversize file?")
 			SendMessage(w, http.StatusBadRequest, REQUEST_WEIRD)

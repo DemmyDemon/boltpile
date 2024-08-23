@@ -48,6 +48,7 @@ type PileConfig struct {
 	Origin   string   `json:"origin"`
 	POSTKey  string   `json:"post_key"`
 	GETKey   string   `json:"get_key"`
+	MaxSize  int64    `json:"max_size"`
 }
 
 func (c Config) BucketNames() [][]byte {
