@@ -55,14 +55,14 @@ func (err ErrFailedCreatingEntryFile) Error() string {
 	return fmt.Sprintf("failed to make file for entry %s/%s: %s", err.Pile, err.Entry, err.UpstreamError.Error())
 }
 
-type ErrDuringWriteOperation struct {
+type ErrDuringFileOperation struct {
 	Pile          string
 	Entry         string
 	UpstreamError error
 }
 
-func (err ErrDuringWriteOperation) Error() string {
-	return fmt.Sprintf("something went wrong after handing off %s/%s to to be written to: %s", err.Pile, err.Entry, err.UpstreamError.Error())
+func (err ErrDuringFileOperation) Error() string {
+	return fmt.Sprintf("failed file operation on %s/%s: %s", err.Pile, err.Entry, err.UpstreamError.Error())
 }
 
 type ErrFailedStoringEntryMetadata struct {

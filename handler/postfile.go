@@ -76,7 +76,7 @@ func PostFile(ec storage.EntryCreator, config storage.Config, limiter *RateLimit
 			case storage.ErrFailedCreatingEntryFile:
 				errLog.Msg("Well, that didn't work...")
 				SendMessage(w, http.StatusInternalServerError, OOOPS)
-			case storage.ErrDuringWriteOperation:
+			case storage.ErrDuringFileOperation:
 				errLog.Msg("Looks like weird data from client. Oversize?")
 				SendMessage(w, http.StatusBadRequest, REQUEST_WEIRD)
 			case storage.ErrFailedStoringEntryMetadata:
