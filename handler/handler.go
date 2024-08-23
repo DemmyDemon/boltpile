@@ -44,6 +44,9 @@ func HasBearerToken(token string, r *http.Request) bool {
 	if token == "" {
 		return true
 	}
+	if token == "!" {
+		return false
+	}
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		return false
