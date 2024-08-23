@@ -51,7 +51,7 @@ func PostFile(ec storage.EntryCreator, config storage.Config, limiter *RateLimit
 
 		size := int64(0)
 
-		entryID, err := ec.CreateEntry(pile, func(entry string, dst io.Writer) error {
+		entryID, err := ec.CreateEntry(pile, "", func(entry string, dst io.Writer) error {
 			file, _, err := r.FormFile("data")
 			if err != nil {
 				return err

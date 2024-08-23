@@ -23,7 +23,7 @@ type EntryGetter interface {
 	GetEntry(pile string, entry string, read GetWithFunc) (err error)
 }
 type EntryCreator interface {
-	CreateEntry(pile string, creator CreateWithFunc) (entryID string, err error)
+	CreateEntry(pile string, entry string, creator CreateWithFunc) (entryID string, err error)
 }
 type EntryHandler interface {
 	EntryGetter
@@ -87,12 +87,14 @@ func (eh BoltDatabase) GetEntry(pile string, entry string, get GetWithFunc) erro
 	})
 	return err
 }
-func (eh BoltDatabase) CreateEntry(pile string, create CreateWithFunc) (string, error) {
-	id, err := uuid.NewRandom()
-	if err != nil {
-		return "", ErrFailedMakingId{err}
+func (eh BoltDatabase) CreateEntry(pile string, entry string, create CreateWithFunc) (string, error) {
+	if entry == "" {
+		id, err := uuid.NewRandom()
+		if err != nil {
+			return "", ErrFailedMakingId{err}
+		}
+		entry = id.String()
 	}
-	entry := id.String()
 
 	return entry, eh.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(pile))
