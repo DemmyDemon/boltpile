@@ -32,9 +32,9 @@ func (eh BoltDatabase) GetEntry(pile string, entry string, get GetWithFunc) erro
 		if value == nil {
 			return ErrNoSuchEntry{Pile: pile, Entry: entry}
 		}
-		created, err := time.Parse(TIME_FORMAT, string(value))
+		entryMeta, err := EntryMetaFromBytes(value)
 		if err != nil {
-			return ErrUnparsableTime{Raw: value, ParseError: err}
+			return ErrUnparsableMeta{Raw: value, ParseError: err}
 		}
 
 		file, err := os.Open(path.Join("piles", pile, entry))
@@ -53,7 +53,7 @@ func (eh BoltDatabase) GetEntry(pile string, entry string, get GetWithFunc) erro
 		MIMEType := http.DetectContentType(buf[:read])
 		file.Seek(0, 0)
 
-		err = get(created, MIMEType, file)
+		err = get(entryMeta, MIMEType, file)
 		if err != nil {
 			return ErrDuringFileOperation{Pile: pile, Entry: entry, UpstreamError: err}
 		}
@@ -65,14 +65,12 @@ func (eh BoltDatabase) GetEntry(pile string, entry string, get GetWithFunc) erro
 	})
 	return err
 }
-func (eh BoltDatabase) CreateEntry(pile string, entry string, create CreateWithFunc) (string, error) {
-	if entry == "" {
-		id, err := uuid.NewRandom()
-		if err != nil {
-			return "", ErrFailedMakingId{err}
-		}
-		entry = id.String()
+func (eh BoltDatabase) CreateEntry(pile string, filename string, create CreateWithFunc) (string, error) {
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return "", ErrFailedMakingId{err}
 	}
+	entry := id.String()
 
 	return entry, eh.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(pile))
@@ -96,8 +94,13 @@ func (eh BoltDatabase) CreateEntry(pile string, entry string, create CreateWithF
 			return ErrFailedCreatingEntryFile{Pile: pile, Entry: entry, UpstreamError: err}
 		}
 
-		now := time.Now().UTC().Format(TIME_FORMAT)
-		if err := bucket.Put([]byte(entry), []byte(now)); err != nil {
+		meta := NewEntryMeta(filename, time.Now().UTC())
+		metaBytes, err := meta.Bytes()
+		if err != nil {
+			return ErrFailedStoringEntryMetadata{Pile: pile, Entry: entry, UpstreamError: err}
+		}
+
+		if err := bucket.Put([]byte(entry), metaBytes); err != nil {
 			return ErrFailedStoringEntryMetadata{Pile: pile, Entry: entry, UpstreamError: err}
 		}
 

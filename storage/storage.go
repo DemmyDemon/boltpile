@@ -10,7 +10,7 @@ const (
 )
 
 type CreateWithFunc func(id string, destination io.Writer) error
-type GetWithFunc func(created time.Time, MIMEType string, file io.Reader) error
+type GetWithFunc func(metaData EntryMeta, MIMEType string, file io.Reader) error
 
 type EntryGetter interface {
 	GetEntry(pile string, entry string, read GetWithFunc) (err error)

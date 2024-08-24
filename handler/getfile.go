@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -32,15 +33,16 @@ func GetFile(eg storage.EntryGetter, config storage.Config) http.HandlerFunc {
 
 		w.Header().Add("Access-Control-Allow-Origin", pileConfig.Origin)
 
-		err = eg.GetEntry(pile, entry, func(createTime time.Time, MIMEType string, file io.Reader) error {
+		err = eg.GetEntry(pile, entry, func(metaData storage.EntryMeta, MIMEType string, file io.Reader) error {
 			now := time.Now()
-			expires := createTime.Add(pileConfig.Lifetime.Duration)
+			expires := metaData.Time().Add(pileConfig.Lifetime.Duration)
 			if now.After(expires) {
 				return errors.New("entry expired, but was not culled yet")
 			}
 			w.Header().Set("Expires", expires.UTC().Format(http.TimeFormat))
-			w.Header().Set("Last-Modified", createTime.UTC().Format(http.TimeFormat))
+			w.Header().Set("Last-Modified", metaData.Time().UTC().Format(http.TimeFormat))
 			w.Header().Set("Content-Type", MIMEType)
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename*=%q", metaData.Filename()))
 			w.WriteHeader(http.StatusOK)
 			logEntry.Msg("Serving data!")
 			_, err = io.Copy(w, file)
@@ -56,7 +58,7 @@ func GetFile(eg storage.EntryGetter, config storage.Config) http.HandlerFunc {
 			case storage.ErrNoSuchEntry:
 				SendMessage(w, http.StatusNotFound, ENTRY_NOT_FOUND)
 				errLog.Msg("Entry not found")
-			case storage.ErrUnparsableTime:
+			case storage.ErrUnparsableMeta:
 				SendMessage(w, http.StatusInternalServerError, OOOPS)
 				errLog.Err(err).Msg("Failed to parse creation time")
 			case storage.ErrDuringFileOperation:

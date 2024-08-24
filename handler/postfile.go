@@ -44,15 +44,20 @@ func PostFile(ec storage.EntryCreator, config storage.Config, limiter *RateLimit
 		r.Body = http.MaxBytesReader(w, r.Body, maxSize+512)
 		err = r.ParseMultipartForm(maxSize)
 		if err != nil {
-			logEntry.Err(err).Msg("Error parsing multipart form. Oversize file?")
+			logEntry.Err(err).Msg("Error parsing multipart form.")
 			SendMessage(w, http.StatusBadRequest, REQUEST_WEIRD)
 			return
 		}
 
 		size := int64(0)
 
-		entryID, err := ec.CreateEntry(pile, "", func(entry string, dst io.Writer) error {
-			file, _, err := r.FormFile("data")
+		file, fileHeader, err := r.FormFile("data")
+		if err != nil {
+			log.Error().Err(err).Str("operation", "write").Str("pile", pile).Str("peer", peer).Msg("NO FORMFILE FOR YOU!!!!")
+			SendMessage(w, http.StatusBadRequest, REQUEST_WEIRD)
+			return
+		}
+		entryID, err := ec.CreateEntry(pile, fileHeader.Filename, func(entry string, dst io.Writer) error {
 			if err != nil {
 				return err
 			}
@@ -77,13 +82,14 @@ func PostFile(ec storage.EntryCreator, config storage.Config, limiter *RateLimit
 				errLog.Msg("Well, that didn't work...")
 				SendMessage(w, http.StatusInternalServerError, OOOPS)
 			case storage.ErrDuringFileOperation:
-				errLog.Msg("Looks like weird data from client. Oversize?")
+				errLog.Msg("Looks like weird data from client.")
 				SendMessage(w, http.StatusBadRequest, REQUEST_WEIRD)
 			case storage.ErrFailedStoringEntryMetadata:
 				errLog.Msg("I love Bolt, but sometimes...")
 				SendMessage(w, http.StatusInternalServerError, OOOPS)
 			default:
 				errLog.Msg("Well, that was unexpected...")
+				SendMessage(w, http.StatusInternalServerError, OOOPS)
 			}
 			return
 		}

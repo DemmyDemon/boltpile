@@ -19,13 +19,13 @@ func (err ErrNoSuchEntry) Error() string {
 	return fmt.Sprintf("%s/%s: no such entry", err.Pile, err.Entry)
 }
 
-type ErrUnparsableTime struct {
+type ErrUnparsableMeta struct {
 	Raw        []byte
 	ParseError error
 }
 
-func (err ErrUnparsableTime) Error() string {
-	return fmt.Sprintf("failed to parse timestamp: %s", err.ParseError.Error())
+func (err ErrUnparsableMeta) Error() string {
+	return fmt.Sprintf("failed to parse entry metadata: %s", err.ParseError.Error())
 }
 
 type ErrFailedMakingId struct {
