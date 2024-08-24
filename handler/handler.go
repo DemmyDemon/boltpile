@@ -12,6 +12,7 @@ import (
 const (
 	MAX_SIZE_DEFAULT = 5242880 // in bytes, 5MB
 	ACCESS_DENIED    = `{"error":"access denied", "success":false}`
+	NOT_IMPLEMENTED  = `{"error":"not implemented", "success":"false}`
 	ENTRY_NOT_FOUND  = `{"error":"entry not found", "success":false}`
 	REQUEST_WEIRD    = `{"error":"request too weird", "success":false}`
 	CHILL_OUT        = `{"error":"you need to chill out", "success":false}`
