@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -18,12 +19,16 @@ const (
 	CHILL_OUT        = `{"error":"you need to chill out", "success":false}`
 	OOOPS            = `{"error":"we messed up on our end", "success":false}`
 	SUCCESS          = `{"success":true, "size":%d, "entry":%q}`
+	FAILURE          = `{"error":%q, "success":false}`
 )
 
 func SendMessage(w http.ResponseWriter, statusCode int, messge string) {
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	w.Write([]byte(messge))
+}
+func SendFailure(w http.ResponseWriter, statusCode int, problem string) {
+	SendMessage(w, statusCode, fmt.Sprintf(FAILURE, problem))
 }
 
 func DeterminePeer(config storage.Config, r *http.Request) string {
