@@ -30,11 +30,11 @@ func VoidExpired(config Config, db *bbolt.DB) {
 				expired := []string{}
 				bucket.ForEach(func(k, v []byte) error {
 					entry := string(k)
-					timestamp, err := time.Parse(TIME_FORMAT, string(v))
+					entryMeta, err := EntryMetaFromBytes(v)
 					if err != nil {
 						return fmt.Errorf("parsing pile %s entry %s time: %w", pile, entry, err)
 					}
-					expires := timestamp.Add(data.Lifetime.Duration)
+					expires := entryMeta.Time().Add(data.Lifetime.Duration)
 					if now.After(expires) {
 						expired = append(expired, entry)
 					}
