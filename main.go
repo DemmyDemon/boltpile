@@ -90,6 +90,7 @@ func main() {
 
 	http.Handle("GET /{pile}/{entry}", handler.GetFile(entryHandler, config))
 	http.Handle("POST /{pile}/", handler.PostFile(entryHandler, config, rateLimiter))
+	http.Handle("GET /{pile}/", handler.GetList(entryHandler, config, rateLimiter))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" && r.URL.Path == "/" {
 			log.Info().Str("peer", handler.DeterminePeer(config, r)).Msg("Requested /, forwarded to boltpile GitHub repo")

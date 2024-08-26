@@ -65,6 +65,25 @@ func (eh BoltDatabase) GetEntry(pile string, entry string, get GetWithFunc) erro
 	})
 	return err
 }
+func (eh BoltDatabase) GetPileEntries(pile string) (map[string]EntryMeta, error) {
+	entries := make(map[string]EntryMeta)
+	err := eh.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(pile))
+		if bucket == nil {
+			return ErrNoSuchPile{pile}
+		}
+		bucket.ForEach(func(name, rawMeta []byte) error {
+			meta, err := EntryMetaFromBytes(rawMeta)
+			if err != nil {
+				return err
+			}
+			entries[string(name)] = meta
+			return nil
+		})
+		return nil
+	})
+	return entries, err
+}
 func (eh BoltDatabase) CreateEntry(pile string, filename string, create CreateWithFunc) (string, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {

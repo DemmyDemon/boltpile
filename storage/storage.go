@@ -26,5 +26,5 @@ type Starter interface {
 	Startup(Config) error
 }
 type PileGetter interface {
-	GetPileEntries(pile string) ([]EntryMeta, error)
+	GetPileEntries(pile string) (map[string]EntryMeta, error)
 }
