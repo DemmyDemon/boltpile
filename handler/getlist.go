@@ -28,7 +28,7 @@ func GetList(eg storage.PileGetter, config storage.Config, limiter *RateLimiter)
 			SendFailure(w, http.StatusNotFound, "pile not found")
 			return
 		}
-		if !HasBearerToken(pileConfig.POSTKey, r) {
+		if !HasBearerToken(pileConfig.ListKey, r) {
 			log.Warn().Str("operation", "list").Str("pile", pile).Str("peer", peer).Msg("Invalid or missing bearer token")
 			SendFailure(w, http.StatusForbidden, "access denied")
 			return
