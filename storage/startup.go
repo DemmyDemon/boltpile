@@ -47,11 +47,17 @@ func Startup(config Config, db *bbolt.DB) error {
 			log.Info().
 				Str("pile", string(bucketName)).
 				Int("entries", size).
-				Bool("read key", cfg.GETKey != "").
-				Bool("write key", cfg.POSTKey != "").
+				Bool("GET key", cfg.GETKey != "").
+				Bool("POST key", cfg.POSTKey != "").
+				Bool("list key", cfg.ListKey != "").
 				Str("lifetime", cfg.Lifetime.String()).
 				Str("CORS origin", cfg.Origin).
 				Msg("Ready!")
+			log.Debug().
+				Str("GET key", cfg.GETKey).
+				Str("POST key", cfg.POSTKey).
+				Str("list key", cfg.ListKey).
+				Msg("Keys set!")
 		}
 		return tx.ForEach(func(name []byte, bucket *bbolt.Bucket) error {
 			if !IsConfiguredBucket(bucketNames, name) {
